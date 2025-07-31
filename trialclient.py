@@ -8,7 +8,7 @@ class ChatClient:
     def __init__(self, master):
         self.master = master
         self.master.title("Chatify - Socket.IO")
-        self.master.geometry("460x600")
+        self.master.geometry("760x600")
         self.master.resizable(False, False)
         self.username = None
         self.sio = socketio.Client()
@@ -43,7 +43,7 @@ class ChatClient:
 
         def connect_to_server():
             try:
-                self.sio.connect("https://e3987f38-a3b3-4666-a61f-6e0e8c2cfb1f-00-36xaklllb1dtd.sisko.replit.dev/", transports=["websocket"])
+                self.sio.connect("https://chatserver-iu2c.onrender.com", transports=["polling", "websocket"])
                 self.sio.send(f"{self.username} joined the chat!")
             except Exception as e:
                 self.display_message(f"Connection error: {e}")
