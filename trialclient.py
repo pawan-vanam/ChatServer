@@ -8,8 +8,8 @@ class ChatClient:
     def __init__(self, master):
         self.master = master
         self.master.title("Chatify - Socket.IO")
-        self.master.geometry("760x600")
-        self.master.resizable(False, False)
+        self.master.geometry("460x600")
+        self.master.resizable(True, True)
         self.username = None
         self.sio = socketio.Client()
 
