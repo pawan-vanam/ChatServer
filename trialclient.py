@@ -15,6 +15,8 @@ class ChatClient:
 
         self.reply_to = None
         self.reply_label = None
+        self.pinned_message_label = None
+        self.active_menu = None
 
         self.setup_login()
 
@@ -30,6 +32,11 @@ class ChatClient:
 
         self.join_button = ctk.CTkButton(self.login_frame, text="Join Chat", command=self.join_chat, font=("Segoe UI", 16), width=300)
         self.join_button.pack(pady=20)
+        # Bind Enter key to work when focused on username_entry
+        self.username_entry.bind('<Return>', lambda event: self.join_chat())
+
+        # Optional: set focus to username entry by default
+        self.username_entry.focus_set()
 
     def join_chat(self):
         self.username = self.username_entry.get().strip()
@@ -83,6 +90,76 @@ class ChatClient:
     def on_message(self, message):
         self.display_message(message)
 
+    def delete_message_widget(self, widget):
+        widget.destroy()
+
+    def pin_message(self, message):
+        if not self.pinned_message_label:
+            self.pinned_frame.pack(fill="x", padx=0, pady=(0, 5))
+
+        if self.pinned_message_label:
+            self.pinned_message_label.destroy()
+
+        self.pinned_message_label = ctk.CTkFrame(self.pinned_frame, fg_color="#f1f1f1")
+        self.pinned_message_label.pack(fill="x", padx=10, pady=5)
+
+        label = ctk.CTkLabel(
+            self.pinned_message_label,
+            text=f"📌 {message}",
+            font=("Segoe UI", 14, "italic"),
+            text_color="#222222",
+            anchor="w"
+        )
+        label.pack(side="left", padx=5, pady=5)
+
+        unpin_btn = ctk.CTkButton(
+            self.pinned_message_label,
+            text="Unpin",
+            width=50,
+            height=20,
+            font=("Segoe UI", 12),
+            command=self.unpin_message,
+            fg_color="#DD4444",
+            text_color="white",
+            hover_color="#BB3333"
+        )
+        unpin_btn.pack(side="right", padx=5, pady=5)
+
+    def unpin_message(self):
+        if self.pinned_message_label:
+            self.pinned_message_label.destroy()
+            self.pinned_message_label = None
+            self.pinned_frame.pack_forget()
+
+    def show_message_options(self, event, widget, message):
+        if self.active_menu:
+            self.active_menu.destroy()
+
+        self.active_menu = ctk.CTkToplevel(self.master)
+        self.active_menu.wm_overrideredirect(True)
+        self.active_menu.configure(bg="#2b2b2b")
+
+        x = self.master.winfo_pointerx()
+        y = self.master.winfo_pointery()
+        self.active_menu.geometry(f"140x135+{x}+{y}")
+
+        def close_menu(e=None):
+            if self.active_menu:
+                self.active_menu.destroy()
+                self.active_menu = None
+
+        def make_button(text, command):
+            btn = ctk.CTkButton(self.active_menu, text=text, command=lambda: [command(), close_menu()],
+                                fg_color="#3a3a3a", hover_color="#5a5a5a", text_color="white", corner_radius=5)
+            btn.pack(fill="x", padx=5, pady=4)
+
+        make_button("💬 Reply", lambda: self.set_reply(message))
+        make_button("📌 Pin", lambda: self.pin_message(message))
+        make_button("❌ Delete", lambda: self.delete_message_widget(widget))
+
+        self.active_menu.bind("<FocusOut>", close_menu)
+        self.active_menu.focus_set()
+
     def display_message(self, message, is_self=False):
         timestamp = datetime.now().strftime("%I:%M %p")
 
@@ -113,7 +190,7 @@ class ChatClient:
         bubble_frame = ctk.CTkFrame(container, fg_color=bubble_color, corner_radius=15)
         bubble_frame.pack(anchor=align, padx=5)
 
-        # Bind double-click to set reply
+        bubble_frame.bind("<Button-3>", lambda e, w=container, m=message: self.show_message_options(e, w, m))
         bubble_frame.bind("<Double-Button-1>", lambda e, msg=message: self.set_reply(msg))
 
         sender_label = ctk.CTkLabel(
@@ -146,8 +223,11 @@ class ChatClient:
         self.chat_frame = ctk.CTkFrame(self.master, corner_radius=0, fg_color="#F0F2F5")
         self.chat_frame.pack(fill="both", expand=True)
 
+        self.pinned_frame = ctk.CTkFrame(self.chat_frame, fg_color="#f1f1f1", corner_radius=0)
+        # Don't pack initially
+
         self.scrollable_chat = ctk.CTkScrollableFrame(self.chat_frame, fg_color="#F0F2F5", corner_radius=0)
-        self.scrollable_chat.pack(fill="both", expand=True, padx=10, pady=(10, 0))
+        self.scrollable_chat.pack(fill="both", expand=True, padx=10, pady=(0, 0))
 
         self.bottom_frame = ctk.CTkFrame(self.chat_frame, fg_color="#E0E0E0", corner_radius=0)
         self.bottom_frame.pack(fill="x", side="bottom")
