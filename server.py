@@ -1,11 +1,16 @@
 import os
 from flask import Flask
-from flask_socketio import SocketIO
+from flask_socketio import SocketIO, emit
 import eventlet
+
 eventlet.monkey_patch()
 
 app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*")
+app.config['SECRET_KEY'] = 'your-secret-key'
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+
+# Store connected users
+connected_users = set()
 
 @app.route("/")
 def index():
@@ -22,7 +27,18 @@ def handle_disconnect():
 @socketio.on('message')
 def handle_message(msg):
     print("Message received: ", msg)
-    socketio.send(msg)
+    socketio.send(msg, broadcast=True)
+
+@socketio.on('login_status')
+def handle_login_status(data):
+    user_id = data.get("user_id")
+    status = data.get("status")
+    if status == "online":
+        connected_users.add(user_id)
+    else:
+        connected_users.discard(user_id)
+    print(f"Login status: {user_id} is {status}")
+    socketio.emit('login_status', {"user_id": user_id, "status": status}, broadcast=True)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
