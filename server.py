@@ -11,11 +11,19 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 def index():
     return "Chat server is running..."
 
+@socketio.on('connect')
+def handle_connect():
+    print("Client connected")
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print("Client disconnected")
+
 @socketio.on('message')
 def handle_message(msg):
-    print("Message: ", msg)
+    print("Message received: ", msg)
     socketio.send(msg)
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # ✅ Use PORT env variable
-    socketio.run(app, host="0.0.0.0", port=port)  # ✅ Not hardcoded 8080
+    port = int(os.environ.get("PORT", 5000))
+    socketio.run(app, host="0.0.0.0", port=port, debug=True)
