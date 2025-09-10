@@ -1,80 +1,58 @@
-import asyncio
-import websockets
+from flask import Flask
+from flask_sock import Sock
 import json
-import http
 
-# This dictionary will store connected clients, mapping user_id to their websocket connection.
+# 1. Initialize the Flask App and the WebSocket Extension
+app = Flask(__name__)
+sock = Sock(app)
+
+# This dictionary will store connected clients (user_id -> websocket connection)
 connected_clients = {}
 
-async def health_check_handler(path, headers):
-    """
-    Handles incoming HTTP requests *before* they become websockets.
-    This is crucial for responding to Render's health checks.
-    """
-    print(f"[*] Received pre-websocket request for path: {path}")
-    if path == "/health":
-        print("[+] Responding to health check with OK.")
-        return http.HTTPStatus.OK, [], b"OK\n"
-    
-    # If the request is not for the health check path, we let the main
-    # websocket handler take over by returning None.
-    return None
+# 2. Create a standard HTTP route for Render's health checks
+@app.route('/health')
+def health_check():
+    """Responds to Render's HTTP health pings with a 200 OK."""
+    print("[Health Check] Responded with OK.")
+    return "OK", 200
 
-async def chat_handler(websocket, path):
-    """
-    Handles the main logic for an active websocket connection.
-    """
+# 3. Create the main WebSocket route for the chat
+@sock.route('/ws')
+def chat_socket(ws):
+    """Handles the entire lifecycle of a WebSocket connection."""
     user_id = None
     try:
-        # The first message from the client is for registration
-        registration_message = await websocket.recv()
+        # The first message from the client must be for registration
+        registration_message = ws.receive(timeout=10) # Wait for 10 seconds
         data = json.loads(registration_message)
         
         if data.get("type") == "register":
             user_id = data["user_id"]
-            connected_clients[user_id] = websocket
-            print(f"[+] User '{user_id}' registered and connected. Total clients: {len(connected_clients)}")
+            connected_clients[user_id] = ws
+            print(f"[+] User '{user_id}' connected. Total clients: {len(connected_clients)}")
         else:
-            print(f"[!] First message was not a registration. Closing connection.")
-            return
+            print("[!] First message was not a registration. Closing connection.")
+            return # This closes the connection
 
-        # Main loop to listen for messages from this client
-        async for message in websocket:
+        # Loop forever, listening for messages from this client
+        while True:
+            message = ws.receive()
             data = json.loads(message)
+
             if data.get("type") == "chat_message":
                 receiver_id = data.get("receiver_id")
                 if receiver_id in connected_clients:
                     receiver_ws = connected_clients[receiver_id]
-                    await receiver_ws.send(json.dumps(data))
+                    receiver_ws.send(json.dumps(data))
                     print(f"[*] Relayed message from '{user_id}' to '{receiver_id}'.")
                 else:
-                    print(f"[!] Could not relay message. Receiver '{receiver_id}' is not connected.")
-
-    except websockets.exceptions.ConnectionClosedOK:
-        print(f"[-] User '{user_id}' disconnected gracefully.")
-    except websockets.exceptions.ConnectionClosedError as e:
-        print(f"[!] User '{user_id}' disconnected with error: {e}")
+                    print(f"[!] Receiver '{receiver_id}' not connected. Message not relayed.")
+    
     except Exception as e:
-        print(f"[!!!] An unexpected error occurred with user '{user_id}': {e}")
+        print(f"[!] An error occurred with user '{user_id}': {e}")
     finally:
-        # Unregister client upon disconnection
+        # When the loop breaks or an error occurs, unregister the client
         if user_id and user_id in connected_clients:
             del connected_clients[user_id]
-            print(f"[-] User '{user_id}' unregistered. Total clients: {len(connected_clients)}")
-
-async def main():
-    port = 10000 
-    host = '0.0.0.0'
-    print(f"[*] Starting Chatify server on {host}:{port}...")
-    
-    # The `process_request` argument is the key. It runs `health_check_handler`
-    # on every incoming connection before attempting a websocket handshake.
-    async with websockets.serve(chat_handler, host, port, process_request=health_check_handler):
-        await asyncio.Future()  # Keep the server running forever
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("[*] Server is shutting down.")
+            print(f"[-] User '{user_id}' disconnected. Total clients: {len(connected_clients)}")
 
