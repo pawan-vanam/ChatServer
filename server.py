@@ -1,9 +1,20 @@
 import asyncio
 import websockets
 import json
+import http # Import the http module
 
 # This dictionary will store connected clients, mapping user_id to their websocket connection.
 connected_clients = {}
+
+async def health_check(path, headers):
+    """
+    Responds to Render's health check pings.
+    If the request path is '/health', it returns a 200 OK response.
+    Otherwise, it allows the websocket connection to proceed.
+    """
+    if path == "/health":
+        return http.HTTPStatus.OK, [], b"OK\n"
+    return None # Let the main handler process the connection
 
 async def handler(websocket, path):
     """
@@ -47,8 +58,10 @@ async def main():
     port = 10000 
     host = '0.0.0.0'
     print(f"Starting websocket server on {host}:{port}...")
-    async with websockets.serve(handler, host, port):
+    # Add the process_request parameter to handle health checks
+    async with websockets.serve(handler, host, port, process_request=health_check):
         await asyncio.Future()  # Run forever
 
 if __name__ == "__main__":
     asyncio.run(main())
+
