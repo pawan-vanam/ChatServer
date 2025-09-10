@@ -238,7 +238,7 @@ class ChatClient:
 
         self.send_button = ctk.CTkButton(self.bottom_frame, text="Send", command=self.send_message, font=("Segoe UI", 14))
         self.send_button.pack(side="right", padx=(5, 10), pady=10)
-
+        
 if __name__ == "__main__":
     ctk.set_appearance_mode("light")
     ctk.set_default_color_theme("blue")
